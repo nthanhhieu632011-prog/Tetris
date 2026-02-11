@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tetris RGB Ultimate 2.0</title>
+    <style>
+        :root { 
+            --bg-color: #050505; 
+            --primary: #00ffcc; 
+            --glass: rgba(20, 20, 20, 0.9);
+        }
+        body { 
+            background: #000;
+            color: white; text-align: center; 
+            font-family: 'Segoe UI', Arial, sans-serif; margin: 0; overflow: hidden; touch-action: none; 
+            display: flex; flex-direction: column; height: 100vh;
+        }
+
+        /* --- BACKGROUND RGB --- */
+        .bg-anim {
+            position: absolute; top:0; left:0; width:100%; height:100%; z-index: -1;
+            background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%);
+        }
+
+        /* --- UI LAYOUT --- */
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            height: 100%;
+            padding-top: 10px;
+        }
+
+        /* Header Info */
+        .top-bar {
+            display: flex; justify-content: space-between; align-items: center;
+            width: 95%; max-width: 500px; margin-bottom: 10px;
+        }
+
+        .stats-group { text-align: left; }
+        .stat-label { font-size: 10px; color: #888; letter-spacing: 1px; }
+        .stat-value { font-size: 20px; font-weight: bold; color: #fff; text-shadow: 0 0 5px var(--primary); }
+
+        /* Next Piece Canvas */
+        .next-box {
+            background: #111; border: 2px solid #333;
+            border-radius: 8px; position: relative;
+            width: 80px; height: 80px;
+            display: flex; justify-content: center; align-items: center;
+        }
+        #next-canvas { width: 100%; height: 100%; }
+
+        /* Main Board */
+        #tetris { 
+            border: 2px solid #444; 
+            background: rgba(0,0,0,0.9); 
+            box-shadow: 0 0 20px rgba(0,255,204,0.2);
+            max-height: 55vh; /* Dành chỗ cho nút bấm */
+            width: auto;
+            touch-action: none;
+        }
+
+        /* --- CONTROLS CHO MOBILE --- */
+        .controls-area {
+            flex: 1; width: 100%; max-width: 500px;
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: 1fr 1fr;
+            gap: 8px; padding: 10px;
+            box-sizing: border-box;
+            padding-bottom: 20px;
+        }
+
+        .btn {
+            border: none; border-radius: 12px;
+            font-size: 24px; color: white;
+            background: rgba(255,255,255,0.1);
+            box-shadow: 0 4px 0 #000;
+            touch-action: manipulation;
+            display: flex; justify-content: center; align-items: center;
+            transition: transform 0.1s, background 0.1s;
+            user-select: none; -webkit-user-select: none;
+        }
+        .btn:active { transform: translateY(4px); box-shadow: none; background: rgba(255,255,255,0.2); }
+
+        .btn-left { grid-column: 1; grid-row: 1; background: #34495e; }
+        .btn-right { grid-column: 3; grid-row: 1; background: #34495e; }
+        .btn-rotate { grid-column: 2; grid-row: 1; background: #2ecc71; font-size: 30px; }
+        .btn-down { grid-column: 2; grid-row: 2; background: #e67e22; }
+        .btn-drop { grid-column: 3; grid-row: 2; background: #e74c3c; font-weight: 900; font-size: 18px; }
+        .btn-hold { grid-column: 1; grid-row: 2; background: #9b59b6; font-size: 18px; }
+        
+        .btn-settings {
+            position: absolute; top: 10px; right: 10px; z-index: 50;
+            background: none; border: none; font-size: 24px; cursor: pointer;
+        }
+
+        /* --- MODAL / MENU --- */
+        .modal {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); z-index: 100;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            backdrop-filter: blur(10px);
+            transition: opacity 0.3s;
+        }
+        .hidden { opacity: 0; pointer-events: none; display: none !important; }
+
+        .rainbow-text {
+            background: linear-gradient(90deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff);
+            background-size: 400%; -webkit-background-clip: text; background-clip: text; color: transparent;
+            animation: flow 5s infinite linear; font-size: 3rem; font-weight: 900; margin-bottom: 20px;
+        }
+        @keyframes flow { 0% { background-position: 0%; } 100% { background-position: 400%; } }
+
+        /* Settings Form */
+        .setting-row { margin: 15px 0; width: 80%; max-width: 300px; text-align: left; }
+        .setting-row label { display: block; color: #aaa; margin-bottom: 5px; font-size: 14px; }
+        input[type="range"] { width: 100%; height: 6px; background: #444; outline: none; -webkit-appearance: none; border-radius: 3px; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; background: var(--primary); border-radius: 50%; cursor: pointer; }
+        
+        .toggle-switch { display: flex; align-items: center; justify-content: space-between; color: white; margin: 15px 0; width: 80%; max-width: 300px;}
+        .switch { position: relative; display: inline-block; width: 50px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(26px); }
+
+        .btn-menu {
+            padding: 15px 50px; font-size: 20px; border-radius: 30px; border: 2px solid var(--primary);
+            background: transparent; color: var(--primary); margin-top: 20px; cursor: pointer;
+            box-shadow: 0 0 15px rgba(0,255,204,0.3); font-weight: bold;
+        }
+        .btn-menu:active { transform: scale(0.95); background: var(--primary); color: #000; }
+
+        /* Neon Effect Classes */
+        .neon-enabled .stat-value { text-shadow: 0 0 10px var(--primary), 0 0 20px var(--primary); }
+        .neon-enabled canvas { box-shadow: 0 0 20px var(--primary); }
+        .neon-enabled .btn { box-shadow: 0 0 10px rgba(255,255,255,0.2); }
+
+    </style>
+</head>
+<body class="neon-enabled">
+
+    <div class="bg-anim"></div>
+
+    <div id="menu-layer" class="modal">
+        <h1 id="menu-title" class="rainbow-text">TETRIS 2.0</h1>
+        
+        <div class="setting-row">
+            <label>Level Bắt Đầu: <span id="val-level" style="color:#fff">1</span></label>
+            <input type="range" id="inp-level" min="1" max="10" value="1" oninput="updateSettingsUI()">
+        </div>
+
+        <div class="setting-row">
+            <label>Âm Lượng Nhạc (BGM)</label>
+            <input type="range" id="inp-vol-bgm" min="0" max="100" value="50" oninput="updateAudio()">
+        </div>
+
+        <div class="setting-row">
+            <label>Âm Lượng Hiệu Ứng (SFX)</label>
+            <input type="range" id="inp-vol-sfx" min="0" max="100" value="80" oninput="updateAudio()">
+        </div>
+
+        <div class="toggle-switch">
+            <span>Hiệu ứng Neon (Lag máy yếu)</span>
+            <label class="switch">
+                <input type="checkbox" id="chk-neon" checked onchange="toggleNeon()">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <button class="btn-menu" id="btn-start" onclick="startGame()">BẮT ĐẦU</button>
+        <button class="btn-menu" style="border-color: #ff4444; color: #ff4444; margin-top: 10px;" onclick="exitGame()">THOÁT</button>
+    </div>
+
+    <div class="game-container">
+        <button class="btn-settings" onclick="pauseGame()">⚙️</button>
+
+        <div class="top-bar">
+            <div class="stats-group">
+                <div class="stat-label">SCORE</div>
+                <div class="stat-value" id="score">0</div>
+            </div>
+            <div class="stats-group">
+                <div class="stat-label">LEVEL</div>
+                <div class="stat-value" id="level">1</div>
+            </div>
+            <div class="next-box">
+                <canvas id="next-canvas" width="80" height="80"></canvas>
+            </div>
+        </div>
+
+        <canvas id="tetris"></canvas>
+
+        <div class="controls-area">
+            <button class="btn btn-hold" onpointerdown="holdCurrentPiece()">🔁</button>
+            <button class="btn btn-rotate" onpointerdown="rotate()">🔄</button>
+            <button class="btn btn-right" onpointerdown="startMove(1)" onpointerup="stopMove()" onpointerleave="stopMove()">➡️</button>
+            
+            <button class="btn btn-left" onpointerdown="startMove(-1)" onpointerup="stopMove()" onpointerleave="stopMove()">⬅️</button>
+            <button class="btn btn-down" onpointerdown="startDropSoft()" onpointerup="stopDropSoft()" onpointerleave="stopDropSoft()">⬇️</button>
+            <button class="btn btn-drop" onpointerdown="dropFull()">SPACE</button>
+        </div>
+    </div>
+
+    <audio id="bgMusic" src="https://www.dropbox.com/scl/fi/8fll8e15ltwrbtc52dlpg/Nightcore-Top-50-songs-of-TheFatRat-2025-TheFatRat-Mega-Mix.mp3?rlkey=xht41ra8tlzjhh2s74yngtf5l&st=654zt4qu&dl=1" loop></audio> 
+    <audio id="sndDrop" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
+    <audio id="sndClear" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg"></audio>
+    <audio id="sndGameover" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
+
+    <script>
+        // --- CONSTANTS & CONFIG ---
+        const COLS = 10, ROWS = 20, TILE_SIZE = 28;
+        const NEXT_SIZE = 20;
+        
+        // Màu sắc RGB
+        const COLORS = [
+            'transparent', 
+            '#00ffff', '#0000ff', '#ffaa00', '#ffff00', '#00ff00', '#aa00ff', '#ff0000', // Basic 1-7
+            '#ff00aa', '#ffcc99', '#ffffff', '#88ff88', '#ff6666', '#99ccff', '#ccff00'  // Advanced
+        ];
+
+        // SHAPES: 0-6 là classic, 7+ là extended
+        // Format: [Flat Array 4x4]
+        const ALL_SHAPES = [
+            // --- CLASSIC (Level 1-10) ---
+            [0,0,0,0, 1,1,1,1, 0,0,0,0, 0,0,0,0], // I
+            [2,0,0,0, 2,2,2,0, 0,0,0,0, 0,0,0,0], // J
+            [0,0,3,0, 3,3,3,0, 0,0,0,0, 0,0,0,0], // L
+            [0,0,0,0, 0,4,4,0, 0,4,4,0, 0,0,0,0], // O
+            [0,0,0,0, 0,5,5,0, 5,5,0,0, 0,0,0,0], // S
+            [0,0,0,0, 0,6,0,0, 6,6,6,0, 0,0,0,0], // T
+            [0,0,0,0, 7,7,0,0, 0,7,7,0, 0,0,0,0], // Z
+            
+            // --- EXTENDED (Level 5-10) ---
+            [0,0,0,0, 0,8,8,8, 0,8,0,0, 0,0,0,0], // T-Plus
+            [0,0,0,0, 9,9,9,0, 9,0,9,0, 0,0,0,0], // U-Shape
+            [0,10,0,0, 10,10,10,0, 0,10,0,0, 0,0,0,0], // Plus
+            [11,0,11,0, 11,11,11,0, 0,0,0,0, 0,0,0,0], // H-Shape
+            [12,12,0,0, 12,0,0,0, 12,12,0,0, 0,0,0,0], // Big Stair
+            [13,13,13,0, 13,13,13,0, 13,13,13,0, 0,0,0,0] // Giant Square (3x3) - Very Hard
+        ];
+
+        // --- VARIABLES ---
+        const canvas = document.getElementById('tetris');
+        const ctx = canvas.getContext('2d');
+        const nextCanvas = document.getElementById('next-canvas');
+        const nextCtx = nextCanvas.getContext('2d');
+        
+        canvas.width = COLS * TILE_SIZE;
+        canvas.height = ROWS * TILE_SIZE;
+
+        let board = [], score = 0, level = 1, startLevel = 1;
+        let cur = null, nextPieceIdx = 0, holdPieceIdx = -1, canHold = true;
+        let isPaused = true, isGameOver = false;
+        let dropInterval = 1000, lastTime = 0, dropCounter = 0;
+        let moveTimer = null, softDropTimer = null;
+        let animationId;
+
+        // Settings
+        let bgmVol = 0.5, sfxVol = 0.8;
+        let isNeon = true;
+
+        // --- INITIALIZATION ---
+        function initGame() {
+            board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+            score = 0;
+            level = parseInt(document.getElementById('inp-level').value);
+            startLevel = level;
+            isGameOver = false;
+            canHold = true;
+            holdPieceIdx = -1;
+            
+            updateAudio();
+            document.getElementById('bgMusic').play().catch(()=>{});
+            
+            nextPieceIdx = getRandomPieceID();
+            spawnPiece();
+            
+            updateUI();
+            dropCounter = 0;
+            lastTime = 0;
+            if (animationId) cancelAnimationFrame(animationId);
+            gameLoop();
+        }
+
+        function startGame() {
+            document.getElementById('menu-layer').classList.add('hidden');
+            document.getElementById('btn-start').innerText = "TIẾP TỤC";
+            document.getElementById('menu-title').innerText = "ĐANG TẠM DỪNG";
+            if (isPaused && !isGameOver && cur) {
+                isPaused = false;
+                document.getElementById('bgMusic').play();
+                gameLoop();
+            } else {
+                isPaused = false;
+                initGame();
+            }
+        }
+
+        function pauseGame() {
+            isPaused = true;
+            document.getElementById('bgMusic').pause();
+            document.getElementById('menu-layer').classList.remove('hidden');
+        }
+
+        function exitGame() {
+            if(confirm("Thoát về Google?")) window.location.href = "https://google.com";
+        }
+
+        // --- LOGIC: PIECES & BOARD ---
+        function getRandomPieceID() {
+            // Level 1-4: Chỉ 7 khối cơ bản (ID 0-6)
+            // Level 5-9: Thêm khối mới từ từ
+            // Level 10: Tất cả + Tỷ lệ khối khó cao hơn
+            let maxIdx = 6;
+            if (level >= 5) maxIdx = 9;
+            if (level >= 8) maxIdx = 11;
+            if (level >= 10) maxIdx = ALL_SHAPES.length - 1;
+            
+            return Math.floor(Math.random() * (maxIdx + 1));
+        }
+
+        function spawnPiece() {
+            let id = nextPieceIdx;
+            nextPieceIdx = getRandomPieceID();
+            drawNextPiece();
+
+            cur = {
+                id: id,
+                data: [],
+                x: Math.floor(COLS/2) - 2,
+                y: -1
+            };
+            
+            // Convert flat array to 2D
+            let shapeData = ALL_SHAPES[id];
+            for(let i=0; i<4; i++) cur.data[i] = shapeData.slice(i*4, i*4+4);
+
+            // Kiểm tra thua ngay khi sinh
+            if (!checkCollision(0, 0)) {
+                gameOver();
+            }
+        }
+
+        function checkCollision(dx, dy, tempMatrix = null) {
+            let mat = tempMatrix || cur.data;
+            for(let y = 0; y < 4; y++) {
+                for(let x = 0; x < 4; x++) {
+                    if (mat[y][x]) {
+                        let newX = cur.x + x + dx;
+                        let newY = cur.y + y + dy;
+                        if (newX < 0 || newX >= COLS || newY >= ROWS) return false;
+                        if (newY >= 0 && board[newY][newX]) return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        function rotate() {
+            if (isPaused || isGameOver) return;
+            // Xoay ma trận
+            let temp = cur.data[0].map((val, index) => cur.data.map(row => row[index]).reverse());
+            
+            // Wall kick cơ bản
+            if (checkCollision(0, 0, temp)) { cur.data = temp; return; }
+            if (checkCollision(1, 0, temp)) { cur.x += 1; cur.data = temp; return; }
+            if (checkCollision(-1, 0, temp)) { cur.x -= 1; cur.data = temp; return; }
+            if (checkCollision(0, -1, temp)) { cur.y -= 1; cur.data = temp; return; } // Kick lên nếu kẹt đáy
+        }
+
+        function lockPiece() {
+            let soundPlayed = false;
+            for(let y = 0; y < 4; y++) {
+                for(let x = 0; x < 4; x++) {
+                    if (cur.data[y][x]) {
+                        if (cur.y + y < 0) { gameOver(); return; }
+                        board[cur.y + y][cur.x + x] = cur.id + 1;
+                        soundPlayed = true;
+                    }
+                }
+            }
+            if(soundPlayed) playSound('sndDrop');
+            
+            checkLines();
+            canHold = true;
+            spawnPiece();
+        }
+
+        function checkLines() {
+            let linesCleared = 0;
+            for (let y = ROWS - 1; y >= 0; y--) {
+                if (board[y].every(cell => cell !== 0)) {
+                    board.splice(y, 1);
+                    board.unshift(Array(COLS).fill(0));
+                    linesCleared++;
+                    y++; // Kiểm tra lại dòng đó vì dòng trên tụt xuống
+                }
+            }
+
+            if (linesCleared > 0) {
+                playSound('sndClear');
+                // Scoring System
+                let points = [0, 100, 300, 500, 1200]; // 1, 2, 3, 4 lines
+                score += (points[linesCleared] || linesCleared * 200) * level;
+                
+                // Level Up Logic
+                let newLevel = Math.floor(score / 3000) + startLevel;
+                if (newLevel > 10) newLevel = 10;
+                level = newLevel;
+                
+                updateUI();
+            }
+        }
+
+        function getGhostY() {
+            let ghostY = cur.y;
+            while(checkCollision(0, ghostY - cur.y + 1)) {
+                ghostY++;
+            }
+            return ghostY;
+        }
+
+        // --- GAME LOOP ---
+        function gameLoop(time = 0) {
+            if (isPaused || isGameOver) return;
+
+            const deltaTime = time - lastTime;
+            lastTime = time;
+            dropCounter += deltaTime;
+
+            // Tính tốc độ rơi dựa trên level (càng cao càng nhanh)
+            let speed = Math.max(50, 1000 - (level * 90)); 
+            
+            if (dropCounter > speed) {
+                if (checkCollision(0, 1)) {
+                    cur.y++;
+                } else {
+                    lockPiece();
+                }
+                dropCounter = 0;
+            }
+
+            draw();
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        // --- DRAWING ---
+        function draw() {
+            // Clear Board
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Board Matrix
+            for (let y = 0; y < ROWS; y++) {
+                for (let x = 0; x < COLS; x++) {
+                    if (board[y][x]) drawBlock(ctx, x, y, board[y][x] - 1);
+                }
+            }
+
+            // Draw Ghost Piece
+            if (cur) {
+                let gy = getGhostY();
+                cur.data.forEach((row, y) => row.forEach((val, x) => {
+                    if (val) {
+                        ctx.strokeStyle = COLORS[cur.id + 1];
+                        ctx.lineWidth = 1;
+                        ctx.globalAlpha = 0.3;
+                        ctx.strokeRect((cur.x + x) * TILE_SIZE, (gy + y) * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                        ctx.globalAlpha = 1.0;
+                    }
+                }));
+
+                // Draw Active Piece
+                cur.data.forEach((row, y) => row.forEach((val, x) => {
+                    if (val) drawBlock(ctx, cur.x + x, cur.y + y, cur.id);
+                }));
+            }
+
+            // Grid lines (nhẹ)
+            ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+            ctx.lineWidth = 1;
+            for(let i=1; i<COLS; i++) { ctx.beginPath(); ctx.moveTo(i*TILE_SIZE, 0); ctx.lineTo(i*TILE_SIZE, canvas.height); ctx.stroke(); }
+            for(let i=1; i<ROWS; i++) { ctx.beginPath(); ctx.moveTo(0, i*TILE_SIZE); ctx.lineTo(canvas.width, i*TILE_SIZE); ctx.stroke(); }
+        }
+
+        function drawBlock(context, x, y, id) {
+            let color = COLORS[id + 1] || '#fff';
+            let px = x * TILE_SIZE;
+            let py = y * TILE_SIZE;
+            let size = TILE_SIZE - 2;
+
+            context.fillStyle = color;
+            context.fillRect(px + 1, py + 1, size, size);
+
+            // Hiệu ứng khối nổi
+            context.fillStyle = 'rgba(255,255,255,0.5)';
+            context.fillRect(px + 1, py + 1, size, 4); // Top highlight
+            context.fillRect(px + 1, py + 1, 4, size); // Left highlight
+        }
+
+        function drawNextPiece() {
+            nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+            let shape = ALL_SHAPES[nextPieceIdx];
+            let data = [];
+            for(let i=0; i<4; i++) data[i] = shape.slice(i*4, i*4+4);
+            
+            // Căn giữa trong ô Next
+            // Tính bounds
+            let minX=4, maxX=0, minY=4, maxY=0;
+            for(let y=0; y<4; y++) for(let x=0; x<4; x++) 
+                if(data[y][x]) { if(x<minX) minX=x; if(x>maxX) maxX=x; if(y<minY) minY=y; if(y>maxY) maxY=y; }
+            
+            let w = (maxX - minX + 1) * NEXT_SIZE;
+            let h = (maxY - minY + 1) * NEXT_SIZE;
+            let offX = (nextCanvas.width - w) / 2 - minX * NEXT_SIZE;
+            let offY = (nextCanvas.height - h) / 2 - minY * NEXT_SIZE;
+
+            data.forEach((row, y) => row.forEach((val, x) => {
+                if(val) {
+                    nextCtx.fillStyle = COLORS[nextPieceIdx + 1];
+                    nextCtx.fillRect(offX + x * NEXT_SIZE, offY + y * NEXT_SIZE, NEXT_SIZE-1, NEXT_SIZE-1);
+                }
+            }));
+        }
+
+        // --- CONTROLS IMPLEMENTATION ---
+        function startMove(dir) {
+            if(isPaused) return;
+            move(dir);
+            if(moveTimer) clearInterval(moveTimer);
+            moveTimer = setInterval(() => move(dir), 120);
+        }
+        function stopMove() { clearInterval(moveTimer); }
+        function move(dir) {
+            if (!checkCollision(dir, 0)) return;
+            cur.x += dir;
+        }
+
+        function startDropSoft() {
+            if(isPaused) return;
+            if(softDropTimer) clearInterval(softDropTimer);
+            softDropTimer = setInterval(() => {
+                if(checkCollision(0, 1)) { cur.y++; score+=1; updateUI(); }
+            }, 50);
+        }
+        function stopDropSoft() { clearInterval(softDropTimer); }
+
+        function dropFull() {
+            if(isPaused || isGameOver) return;
+            let droppedDist = 0;
+            while(checkCollision(0, 1)) { cur.y++; droppedDist++; }
+            score += droppedDist * 2;
+            updateUI();
+            lockPiece();
+        }
+
+        function holdCurrentPiece() {
+            if(!canHold || isPaused) return;
+            
+            if(holdPieceIdx === -1) {
+                holdPieceIdx = cur.id;
+                spawnPiece();
+            } else {
+                let temp = holdPieceIdx;
+                holdPieceIdx = cur.id;
+                
+                // Respawn piece from hold
+                cur.id = temp;
+                cur.x = Math.floor(COLS/2) - 2;
+                cur.y = -1;
+                let shape = ALL_SHAPES[cur.id];
+                cur.data = [];
+                for(let i=0; i<4; i++) cur.data[i] = shape.slice(i*4, i*4+4);
+            }
+            canHold = false;
+        }
+
+        // --- UI & SETTINGS HANDLERS ---
+        function updateUI() {
+            document.getElementById('score').innerText = score;
+            document.getElementById('level').innerText = level;
+        }
+
+        function updateSettingsUI() {
+            let val = document.getElementById('inp-level').value;
+            document.getElementById('val-level').innerText = val;
+        }
+
+        function updateAudio() {
+            bgmVol = document.getElementById('inp-vol-bgm').value / 100;
+            sfxVol = document.getElementById('inp-vol-sfx').value / 100;
+            
+            document.getElementById('bgMusic').volume = bgmVol;
+            ['sndDrop', 'sndClear', 'sndGameover'].forEach(id => {
+                document.getElementById(id).volume = sfxVol;
+            });
+        }
+
+        function toggleNeon() {
+            isNeon = document.getElementById('chk-neon').checked;
+            if (isNeon) document.body.classList.add('neon-enabled');
+            else document.body.classList.remove('neon-enabled');
+        }
+
+        function playSound(id) {
+            let s = document.getElementById(id);
+            s.currentTime = 0;
+            s.play().catch(()=>{});
+        }
+
+        function gameOver() {
+            isGameOver = true;
+            cancelAnimationFrame(animationId);
+            document.getElementById('bgMusic').pause();
+            playSound('sndGameover');
+            
+            document.getElementById('menu-title').innerText = "GAME OVER";
+            document.getElementById('btn-start').innerText = "CHƠI LẠI";
+            document.getElementById('menu-layer').classList.remove('hidden');
+        }
+
+        // Keyboard Support
+        document.addEventListener('keydown', e => {
+            if(isPaused && e.key !== "Escape") return;
+            switch(e.key) {
+                case "ArrowLeft": move(-1); break;
+                case "ArrowRight": move(1); break;
+                case "ArrowUp": rotate(); break;
+                case "ArrowDown": if(checkCollision(0,1)) cur.y++; break;
+                case " ": dropFull(); break;
+                case "c": case "Shift": holdCurrentPiece(); break;
+                case "Escape": if(!isGameOver) pauseGame(); break;
+            }
+        });
+
+        // Init Settings UI
+        updateSettingsUI();
+    </script>
+</body>
+</html>
